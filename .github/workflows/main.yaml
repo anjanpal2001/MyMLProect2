@@ -43,7 +43,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq unzip
 
-      # ✅ FIX 1: Updated to v2 (more stable + recommended)
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -55,7 +54,6 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      # ✅ FIX 2: Added DEBUG step (CRITICAL for diagnosing empty repo issue)
       - name: Debug values
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -64,7 +62,6 @@ jobs:
           echo "REGISTRY=$ECR_REGISTRY"
           echo "REPOSITORY=$ECR_REPOSITORY"
 
-      # ✅ FIX 3: Clean build + removed deprecated set-output
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
@@ -74,21 +71,19 @@ jobs:
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-          # ✅ FIX: replaced deprecated set-output
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
 
 # ------------------ DEPLOY ------------------
   Continuous-Deployment:
+    name: Continuous Deployment
     needs: build-and-push-ecr-image
-    runs-on: self-hosted
+    runs-on: ubuntu-latest   # ✅ FIXED (no more self-hosted issue)
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      # ✅ FIX 4: Updated AWS credentials action
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -99,26 +94,19 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
 
-      # ✅ FIX 5: Pull using FULL correct URI
       - name: Pull latest image
         run: |
           docker pull ${{ secrets.AWS_ECR_LOGIN_URI }}/${{ secrets.ECR_REPOSITORY_NAME }}:latest
 
-      # ✅ FIX 6: Ensure old container doesn't break deployment
-      - name: Stop and remove old container
+      - name: Stop and remove old container (safe)
         run: |
           docker stop mltest || true
           docker rm mltest || true
 
-      # ✅ FIX 7: Clean and correct docker run command
       - name: Run Docker container
         run: |
           docker run -d -p 8080:8080 \
-          --ipc="host" \
           --name mltest \
-          -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
-          -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
-          -e AWS_REGION=${{ secrets.AWS_REGION }} \
           ${{ secrets.AWS_ECR_LOGIN_URI }}/${{ secrets.ECR_REPOSITORY_NAME }}:latest
 
       - name: Cleanup
