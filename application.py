@@ -36,3 +36,6 @@ if __name__=="__main__":
     application.run(debug=True,host="0.0.0.0",port=8080)  
     
     
+    # This is my full deployment code for the flask application. I have created a flask application and defined two routes. The first route is for the home page and the second route is for the prediction page. In the prediction page, I am taking the input from the user and creating a dataframe from it. Then I am using the predict pipeline to get the results and rendering the results on the home page.
+    
+    
